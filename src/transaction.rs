@@ -3,7 +3,7 @@ use serde::Serialize;
 use serde_json::value::RawValue;
 
 #[derive(Clone, Debug, Serialize)]
-pub enum EncodedTransaction {
+pub enum TransactionType {
     Raw(String),
     Encrypted(String),
 }
