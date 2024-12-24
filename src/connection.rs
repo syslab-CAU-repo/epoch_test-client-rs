@@ -1,4 +1,10 @@
-use std::time::Duration;
+use std::{
+    sync::{
+        atomic::{AtomicU32, AtomicU64, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 use alloy::primitives::FixedBytes;
 use jsonrpsee::{core::client::ClientT, http_client::HttpClient};
@@ -38,6 +44,56 @@ impl Connection {
             Ok(_) => Ok(()),
             Err(error) => Err(ConnectionError::Send(error)),
         }
+    }
+}
+
+pub struct Statistics {
+    inner: Arc<StatisticsInner>,
+}
+
+#[derive(Debug)]
+struct StatisticsInner {
+    total: AtomicU64,
+    success: AtomicU32,
+    failure: AtomicU32,
+}
+
+impl std::fmt::Debug for Statistics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.inner)
+    }
+}
+
+impl Clone for Statistics {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl Default for Statistics {
+    fn default() -> Self {
+        Self {
+            inner: StatisticsInner {
+                total: 0.into(),
+                success: 0.into(),
+                failure: 0.into(),
+            }
+            .into(),
+        }
+    }
+}
+
+impl Statistics {
+    pub fn ok(&self) {
+        self.inner.total.fetch_add(1, Ordering::SeqCst);
+        self.inner.success.fetch_add(1, Ordering::SeqCst);
+    }
+
+    pub fn err(&self) {
+        self.inner.total.fetch_add(1, Ordering::SeqCst);
+        self.inner.failure.fetch_add(1, Ordering::SeqCst);
     }
 }
 
