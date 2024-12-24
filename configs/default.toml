@@ -1,5 +1,5 @@
 threads = 10
-connections = 30,
+connections = 30
 duration = 10
 rpc_url = "http://34.47.75.30:8545"
 request_timeout = 5
