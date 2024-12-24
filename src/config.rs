@@ -8,11 +8,12 @@ pub struct Config {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct ConfigInner {
+    threads: usize,
+    connections: usize,
+    duration: u64,
     rpc_url: String,
-    io_thread: usize,
     request_timeout: u64,
-    test_duration: u64,
-    accounts: Vec<String>,
+    signing_keys: Vec<String>,
     rollup_id: String,
 }
 
@@ -31,24 +32,28 @@ impl Clone for Config {
 }
 
 impl Config {
-    pub fn rpc_url(&self) -> &str {
-        &self.inner.rpc_url
+    pub fn threads(&self) -> usize {
+        self.inner.threads
     }
 
-    pub fn io_thread(&self) -> usize {
-        self.inner.io_thread
+    pub fn connections(&self) -> usize {
+        self.inner.connections
+    }
+
+    pub fn duration(&self) -> u64 {
+        self.inner.duration
+    }
+
+    pub fn rpc_url(&self) -> &str {
+        &self.inner.rpc_url
     }
 
     pub fn request_timeout(&self) -> u64 {
         self.inner.request_timeout
     }
 
-    pub fn test_duration(&self) -> u64 {
-        self.inner.test_duration
-    }
-
-    pub fn accounts(&self) -> &Vec<String> {
-        &self.inner.accounts
+    pub fn signing_keys(&self) -> &Vec<String> {
+        &self.inner.signing_keys
     }
 
     pub fn rollup_id(&self) -> &str {
