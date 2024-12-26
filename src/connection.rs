@@ -18,7 +18,7 @@ pub fn connection_channel(size: usize) -> (Sender, Receiver) {
 
 pub struct Connection {
     rpc_client: HttpClient,
-    total_requests: usize,
+    statistics: Statistics,
     responses: Vec<TransactionResponse>,
     receiver: Receiver,
 }
@@ -36,21 +36,32 @@ impl Connection {
 
         Ok(Self {
             rpc_client,
-            total_requests: 0,
+            statistics: Statistics::default(),
             responses: vec![],
             receiver,
         })
     }
 
+    pub fn statistics(&self) -> &Statistics {
+        &self.statistics
+    }
+
     pub async fn init(mut self) -> Self {
         loop {
-            if let Some(transaction) = self.receiver.lock().await.recv().await {
+            let mut receiver = self.receiver.lock().await;
+            if let Some(transaction) = receiver.recv().await {
+                drop(receiver);
+
                 match self.send_transaction(transaction).await {
                     Ok(transaction_response) => {
-                        self.total_requests += 1;
+                        self.statistics.total += 1;
+                        self.statistics.success += 1;
                         self.responses.push(transaction_response);
                     }
-                    Err(_error) => self.total_requests += 1,
+                    Err(_error) => {
+                        self.statistics.total += 1;
+                        self.statistics.failure += 1;
+                    }
                 }
             } else {
                 break;
@@ -86,6 +97,13 @@ impl Connection {
             )),
         }
     }
+}
+
+#[derive(Debug, Default)]
+pub struct Statistics {
+    pub total: u64,
+    pub success: u32,
+    pub failure: u32,
 }
 
 #[derive(Debug)]
