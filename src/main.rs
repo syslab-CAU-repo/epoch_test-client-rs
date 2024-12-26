@@ -4,7 +4,7 @@ use test_client_rs::{
     self,
     account::{Account, Accounts},
     config::Config,
-    connection::{connection_channel, Connection, ConnectionError},
+    connection::{connection_channel, Connection, ConnectionError, Statistics},
     generator::{Flag, Generator},
     transaction::Transaction,
 };
@@ -20,10 +20,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .to_owned();
     let config = Config::open(&config_path)?;
 
+    // Panics if the sum of generator and connection threads exceeds the number of
+    // cores available.
+    let total_threads = config.generator_threads() + config.connection_threads();
+    let available_threads = std::thread::available_parallelism()
+        .expect("Failed to get the available threads.")
+        .get();
+    if total_threads > available_threads {
+        panic!(
+            "The sum of generator and connection threads cannot exceed the available threads({}).",
+            available_threads
+        );
+    }
+
     // Initialize the async runtime.
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .worker_threads(config.threads())
+        .worker_threads(total_threads)
         .max_blocking_threads(1)
         .build()?;
 
@@ -49,10 +62,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     });
 
-    // Initialize the generator.
+    // Initialize generators.
     let flag = Flag::default();
-    runtime.spawn(Generator::init(flag.clone(), transaction, accounts, sender));
-    tracing::info!("Initialized the generator.");
+    (0..config.generator_threads()).for_each(|_| {
+        runtime.spawn(Generator::init(
+            flag.clone(),
+            transaction,
+            accounts.clone(),
+            sender.clone(),
+        ));
+    });
+    tracing::info!("Initialized {} generator.", config.generator_threads());
 
     // Initialize the ticker.
     runtime.spawn({
@@ -71,16 +91,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             flag.stop();
         }
     });
+    drop(sender);
 
-    runtime.block_on(async move {
+    let statistics = runtime.block_on(async move {
+        let mut statistics = Statistics::default();
+
         for connection in connection_handles.into_iter() {
-            let _connection = connection.await.unwrap();
+            let connection = connection.await.unwrap();
+            statistics.total += connection.statistics().total;
+            statistics.success += connection.statistics().success;
+            statistics.failure += connection.statistics().failure;
         }
+
+        statistics
     });
+
+    tracing::info!("{:?}", statistics);
 
     Ok(())
 }
 
+#[inline(always)]
 async fn transaction(accounts: Accounts) -> Transaction {
     Transaction::EthRaw(vec!["0x".to_owned()])
 }
