@@ -8,7 +8,9 @@ use std::{
 
 use crate::{account::Accounts, connection::Sender, transaction::Transaction};
 
-pub struct Generator;
+pub struct Generator {
+    total: u64,
+}
 
 impl Generator {
     pub async fn init<T, F>(
@@ -16,14 +18,27 @@ impl Generator {
         transaction_generator: T,
         accounts: Accounts,
         sender: Sender,
-    ) where
+    ) -> Self
+    where
         T: Fn(Accounts) -> F,
         F: Future<Output = Transaction> + Send + 'static,
     {
+        let mut generator = Self { total: 0 };
+
         while !flag.stopped() {
             let transaction = transaction_generator(accounts.clone()).await;
-            sender.send(transaction).await.unwrap();
+            generator.total += 1;
+
+            match sender.send(transaction).await {
+                Ok(_) => continue,
+                Err(error) => {
+                    tracing::error!("{:?}", error);
+                    continue;
+                }
+            }
         }
+
+        generator
     }
 }
 
