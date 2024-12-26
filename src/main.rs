@@ -39,6 +39,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|connection| runtime.spawn(connection.init()))
         .collect();
 
+    // TODO: Create a generator.
+
     runtime.block_on(async move {
         for connection in connection_handles.into_iter() {
             let _connection = connection.await.unwrap();
