@@ -24,6 +24,8 @@ use jsonrpsee::{
 
 use crate::config::Config;
 
+pub type Accounts = Arc<Vec<Account>>;
+
 pub struct Account {
     inner: Arc<AccountInner>,
 }
@@ -47,7 +49,7 @@ impl Clone for Account {
 }
 
 impl Account {
-    pub async fn from_config(config: &Config) -> Result<Vec<Self>, AccountError> {
+    pub async fn from_config(config: &Config) -> Result<Accounts, AccountError> {
         if config.signing_keys().is_empty() {
             return Err(AccountError::EmptySigningKey);
         }
@@ -85,7 +87,7 @@ impl Account {
             account.set_nonce(nonce);
         }
 
-        Ok(accounts)
+        Ok(Arc::new(accounts))
     }
 
     pub fn new(
@@ -115,6 +117,10 @@ impl Account {
     }
 
     pub fn nonce(&self) -> usize {
+        self.inner.nonce.load(Ordering::SeqCst)
+    }
+
+    pub fn fetch_add_nonce(&self) -> usize {
         self.inner.nonce.fetch_add(1, Ordering::SeqCst)
     }
 }
