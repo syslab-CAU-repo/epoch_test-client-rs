@@ -1,3 +1,4 @@
+use alloy::{primitives::FixedBytes, rpc::types::TransactionRequest};
 use jsonrpsee::core::traits::ToRpcParams;
 use serde::Serialize;
 use serde_json::value::RawValue;
@@ -20,5 +21,16 @@ impl ToRpcParams for Transaction {
     fn to_rpc_params(self) -> Result<Option<Box<RawValue>>, serde_json::Error> {
         let json = serde_json::to_string(&self)?;
         RawValue::from_string(json).map(Some)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum TransactionResult {
+    TransactionHash(FixedBytes<32>),
+}
+
+impl From<FixedBytes<32>> for TransactionResult {
+    fn from(value: FixedBytes<32>) -> Self {
+        Self::TransactionHash(value)
     }
 }
