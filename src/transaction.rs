@@ -1,4 +1,4 @@
-use alloy::{primitives::FixedBytes, rpc::types::TransactionRequest};
+use alloy::primitives::FixedBytes;
 use jsonrpsee::core::traits::ToRpcParams;
 use serde::Serialize;
 use serde_json::value::RawValue;
@@ -25,11 +25,11 @@ impl ToRpcParams for Transaction {
 }
 
 #[derive(Clone, Debug)]
-pub enum TransactionResult {
+pub enum TransactionResponse {
     TransactionHash(FixedBytes<32>),
 }
 
-impl From<FixedBytes<32>> for TransactionResult {
+impl From<FixedBytes<32>> for TransactionResponse {
     fn from(value: FixedBytes<32>) -> Self {
         Self::TransactionHash(value)
     }
