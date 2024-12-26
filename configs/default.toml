@@ -1,5 +1,6 @@
-threads = 8
-connections = 50
+generator_threads = 1
+connection_threads = 16
+connections = 500
 duration = 3
 rpc_url = "http://34.47.75.30:8545"
 request_timeout = 5
