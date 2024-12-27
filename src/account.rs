@@ -123,6 +123,10 @@ impl Account {
     pub fn fetch_add_nonce(&self) -> u64 {
         self.inner.nonce.fetch_add(1, Ordering::SeqCst)
     }
+
+    pub fn wallet(&self) -> &EthereumWallet {
+        self.inner.provider.wallet()
+    }
 }
 
 #[derive(Debug)]
