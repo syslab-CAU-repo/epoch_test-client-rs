@@ -113,5 +113,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[inline(always)]
 async fn transaction(accounts: Accounts) -> Transaction {
-    Transaction::EthRaw(vec!["0x".to_owned()])
+    use alloy::{
+        eips::eip2718::Encodable2718, network::TransactionBuilder, primitives::U256,
+        rpc::types::TransactionRequest,
+    };
+    use rand::seq::SliceRandom;
+
+    let from = accounts.get(0).unwrap();
+    let to = accounts[1..].choose(&mut rand::thread_rng()).unwrap();
+
+    let transaction = TransactionRequest::default()
+        .with_to(to.address())
+        .with_nonce(from.fetch_add_nonce())
+        .with_chain_id(67722)
+        .with_value(U256::from(1))
+        .with_gas_limit(21_000)
+        .with_max_priority_fee_per_gas(1_000_000_000)
+        .with_max_fee_per_gas(20_000_000_000);
+
+    let envelope = transaction.build(from.wallet()).await.unwrap();
+    let encoded_transaction = const_hex::encode_prefixed(envelope.encoded_2718());
+
+    Transaction::eth_raw_transaction(encoded_transaction)
 }
