@@ -1,7 +1,7 @@
 use std::{
     str::FromStr,
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicU64, Ordering},
         Arc,
     },
     time::Duration,
@@ -37,7 +37,7 @@ struct AccountInner {
         Http<Client>,
         Ethereum,
     >,
-    nonce: AtomicUsize,
+    nonce: AtomicU64,
 }
 
 impl Clone for Account {
@@ -83,7 +83,7 @@ impl Account {
                 .map_err(|error| AccountError::BatchResponse(error.message().to_owned()))?;
 
             let nonce =
-                usize::from_str_radix(&nonce_string[2..], 16).map_err(AccountError::ParseNonce)?;
+                u64::from_str_radix(&nonce_string[2..], 16).map_err(AccountError::ParseNonce)?;
             account.set_nonce(nonce);
         }
 
@@ -101,7 +101,7 @@ impl Account {
             .wallet(wallet)
             .on_http(rpc_url.as_ref().parse().map_err(AccountError::Provider)?);
 
-        let nonce = AtomicUsize::new(0);
+        let nonce = AtomicU64::new(0);
 
         Ok(Self {
             inner: AccountInner { provider, nonce }.into(),
@@ -112,15 +112,15 @@ impl Account {
         self.inner.provider.wallet().default_signer().address()
     }
 
-    fn set_nonce(&self, nonce: usize) {
+    fn set_nonce(&self, nonce: u64) {
         self.inner.nonce.store(nonce, Ordering::SeqCst);
     }
 
-    pub fn nonce(&self) -> usize {
+    pub fn nonce(&self) -> u64 {
         self.inner.nonce.load(Ordering::SeqCst)
     }
 
-    pub fn fetch_add_nonce(&self) -> usize {
+    pub fn fetch_add_nonce(&self) -> u64 {
         self.inner.nonce.fetch_add(1, Ordering::SeqCst)
     }
 }
