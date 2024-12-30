@@ -31,6 +31,7 @@ pub struct Account {
 }
 
 struct AccountInner {
+    config: Config,
     provider: FillProvider<
         JoinFill<Identity, WalletFiller<EthereumWallet>>,
         RootProvider<Http<Client>>,
@@ -57,7 +58,7 @@ impl Account {
         let accounts: Vec<Self> = config
             .signing_keys()
             .iter()
-            .map(|signing_key| Self::new(signing_key, config.rpc_url()))
+            .map(|signing_key| Self::new(config.clone(), signing_key))
             .collect::<Result<Vec<Self>, AccountError>>()?;
 
         let rpc_client = HttpClient::builder()
@@ -90,22 +91,28 @@ impl Account {
         Ok(Arc::new(accounts))
     }
 
-    pub fn new(
-        signing_key: impl AsRef<str>,
-        rpc_url: impl AsRef<str>,
-    ) -> Result<Self, AccountError> {
+    pub fn new(config: Config, signing_key: impl AsRef<str>) -> Result<Self, AccountError> {
         let signer =
             PrivateKeySigner::from_str(signing_key.as_ref()).map_err(AccountError::Signer)?;
         let wallet = EthereumWallet::new(signer);
         let provider = ProviderBuilder::new()
             .wallet(wallet)
-            .on_http(rpc_url.as_ref().parse().map_err(AccountError::Provider)?);
+            .on_http(config.rpc_url().parse().map_err(AccountError::Provider)?);
 
         let nonce = AtomicU64::new(0);
 
         Ok(Self {
-            inner: AccountInner { provider, nonce }.into(),
+            inner: AccountInner {
+                config,
+                provider,
+                nonce,
+            }
+            .into(),
         })
+    }
+
+    pub fn config(&self) -> &Config {
+        &self.inner.config
     }
 
     pub fn address(&self) -> Address {

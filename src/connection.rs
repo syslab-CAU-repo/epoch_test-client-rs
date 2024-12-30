@@ -4,7 +4,7 @@ use alloy::primitives::FixedBytes;
 use jsonrpsee::{core::client::ClientT, http_client::HttpClient};
 use tokio::sync::{mpsc, Mutex};
 
-use crate::transaction::{Transaction, TransactionResponse};
+use crate::transaction::{EthRawTransaction, RawTransaction, Transaction, TransactionResponse};
 
 pub type Sender = mpsc::Sender<Transaction>;
 pub type Receiver = Arc<Mutex<mpsc::Receiver<Transaction>>>;
@@ -58,9 +58,10 @@ impl Connection {
                         self.statistics.success += 1;
                         self.responses.push(transaction_response);
                     }
-                    Err(_error) => {
+                    Err(error) => {
                         self.statistics.total += 1;
                         self.statistics.failure += 1;
+                        tracing::error!("{:?}", error);
                     }
                 }
             } else {
@@ -76,25 +77,40 @@ impl Connection {
         transaction: Transaction,
     ) -> Result<TransactionResponse, ConnectionError> {
         match transaction {
-            Transaction::EthRaw(_) => self.send_eth_raw_transaction(transaction).await,
+            Transaction::EthRaw(transaction) => self.send_eth_raw_transaction(transaction).await,
+            Transaction::Raw(transaction) => self.send_raw_transaction(transaction).await,
             others => unimplemented!("Transaction type {:?} is unhandled.", others),
         }
     }
 
     pub async fn send_eth_raw_transaction(
         &self,
-        transaction: Transaction,
+        transaction: EthRawTransaction,
     ) -> Result<TransactionResponse, ConnectionError> {
         match self
             .rpc_client
-            .request::<FixedBytes<32>, Transaction>("eth_sendRawTransaction", transaction)
+            .request::<FixedBytes<32>, EthRawTransaction>("eth_sendRawTransaction", transaction)
             .await
         {
-            Ok(transaction_hash) => Ok(transaction_hash.into()),
+            Ok(response) => Ok(TransactionResponse::TransactionHash(response)),
             Err(error) => Err(ConnectionError::Request(
                 Method::SendEthRawTransaction,
                 error,
             )),
+        }
+    }
+
+    pub async fn send_raw_transaction(
+        &self,
+        transaction: RawTransaction,
+    ) -> Result<TransactionResponse, ConnectionError> {
+        match self
+            .rpc_client
+            .request::<String, RawTransaction>("send_raw_transaction", transaction)
+            .await
+        {
+            Ok(response) => Ok(TransactionResponse::OrderCommitment(response)),
+            Err(error) => Err(ConnectionError::Request(Method::SendRawTransaction, error)),
         }
     }
 }
@@ -123,4 +139,5 @@ impl std::error::Error for ConnectionError {}
 #[derive(Debug)]
 pub enum Method {
     SendEthRawTransaction,
+    SendRawTransaction,
 }

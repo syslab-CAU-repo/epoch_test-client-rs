@@ -134,5 +134,6 @@ async fn transaction(accounts: Accounts) -> Transaction {
     let envelope = transaction.build(from.wallet()).await.unwrap();
     let encoded_transaction = const_hex::encode_prefixed(envelope.encoded_2718());
 
-    Transaction::eth_raw_transaction(encoded_transaction)
+    // Transaction::eth_raw_transaction(encoded_transaction)
+    Transaction::raw_transaction(from.config().rollup_id().to_owned(), encoded_transaction)
 }
