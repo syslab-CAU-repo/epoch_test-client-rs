@@ -4,7 +4,9 @@ use alloy::primitives::FixedBytes;
 use jsonrpsee::{core::client::ClientT, http_client::HttpClient};
 use tokio::sync::{mpsc, Mutex};
 
-use crate::transaction::{EthRawTransaction, RawTransaction, Transaction, TransactionResponse};
+use crate::transaction::{
+    EthRawTransaction, OrderCommitment, RawTransaction, Transaction, TransactionResponse,
+};
 
 pub type Sender = mpsc::Sender<Transaction>;
 pub type Receiver = Arc<Mutex<mpsc::Receiver<Transaction>>>;
@@ -106,7 +108,7 @@ impl Connection {
     ) -> Result<TransactionResponse, ConnectionError> {
         match self
             .rpc_client
-            .request::<String, RawTransaction>("send_raw_transaction", transaction)
+            .request::<OrderCommitment, RawTransaction>("send_raw_transaction", transaction)
             .await
         {
             Ok(response) => Ok(TransactionResponse::OrderCommitment(response)),
