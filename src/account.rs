@@ -62,7 +62,7 @@ impl Account {
 
         let rpc_client = HttpClient::builder()
             .request_timeout(Duration::from_secs(config.request_timeout()))
-            .build(config.rpc_url())
+            .build(config.ethereum_rpc_url())
             .map_err(AccountError::InitRpcClient)?;
 
         let mut batch_request = BatchRequestBuilder::new();

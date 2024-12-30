@@ -12,6 +12,7 @@ struct ConfigInner {
     connection_threads: usize,
     connections: usize,
     duration: u64,
+    ethereum_rpc_url: String,
     rpc_url: String,
     request_timeout: u64,
     signing_keys: Vec<String>,
@@ -47,6 +48,10 @@ impl Config {
 
     pub fn duration(&self) -> u64 {
         self.inner.duration
+    }
+
+    pub fn ethereum_rpc_url(&self) -> &str {
+        &self.inner.ethereum_rpc_url
     }
 
     pub fn rpc_url(&self) -> &str {
