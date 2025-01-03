@@ -7,8 +7,11 @@ use tokio::{
     time::{Duration, Instant},
 };
 
-use crate::transaction::{
-    EthRawTransaction, OrderCommitment, RawTransaction, Transaction, TransactionResponse,
+use crate::{
+    statistics::Statistics,
+    transaction::{
+        EthRawTransaction, OrderCommitment, RawTransaction, Transaction, TransactionResponse,
+    },
 };
 
 pub type Sender = mpsc::Sender<Transaction>;
@@ -22,14 +25,14 @@ pub fn connection_channel(size: usize) -> (Sender, Receiver) {
 }
 
 pub struct Connection {
-    rpc_client: HttpClient,
     statistics: Statistics,
-    responses: Vec<TransactionResponse>,
+    rpc_client: HttpClient,
     receiver: Receiver,
 }
 
 impl Connection {
     pub fn new(
+        statistics: Statistics,
         rpc_url: impl AsRef<str>,
         request_timeout: u64,
         receiver: Receiver,
@@ -40,40 +43,34 @@ impl Connection {
             .map_err(ConnectionError::InitRpcClient)?;
 
         Ok(Self {
+            statistics,
             rpc_client,
-            statistics: Statistics::default(),
-            responses: vec![],
             receiver,
         })
     }
 
-    pub async fn init(mut self) -> Statistics {
+    pub async fn init(self) {
         loop {
             let mut receiver = self.receiver.lock().await;
             if let Some(transaction) = receiver.recv().await {
                 drop(receiver);
 
                 let time_start = Instant::now();
+                self.statistics.sent().await;
                 match self.send_transaction(transaction).await {
-                    Ok(transaction_response) => {
-                        self.statistics.total += 1;
-                        self.statistics.success += 1;
-                        self.responses.push(transaction_response);
+                    Ok(response) => {
+                        let response_time = time_start.elapsed().as_millis();
+                        self.statistics.succeed(response, response_time).await;
                     }
                     Err(error) => {
-                        self.statistics.total += 1;
-                        self.statistics.failure += 1;
-                        tracing::error!("{:?}", error);
+                        let response_time = time_start.elapsed().as_millis();
+                        self.statistics.failed(error, response_time).await;
                     }
                 }
-                let response_time = time_start.elapsed().as_millis();
-                self.statistics.response_time.push(response_time);
             } else {
                 break;
             }
         }
-
-        self.statistics
     }
 
     pub async fn send_transaction(
@@ -137,46 +134,4 @@ impl std::error::Error for ConnectionError {}
 pub enum Method {
     SendEthRawTransaction,
     SendRawTransaction,
-}
-
-#[derive(Default)]
-pub struct Statistics {
-    pub total: u64,
-    pub success: u32,
-    pub failure: u32,
-    pub response_time: Vec<u128>,
-}
-
-impl Statistics {
-    pub fn tps(&self, duration: u64) -> u64 {
-        u64::from(self.success) / duration
-    }
-
-    /// # Panics
-    ///
-    /// The function panics if it fails to get the 'N'th index in the response
-    /// time vector.
-    ///
-    /// Return 50th, 90th, 95th and 99th percentile values.
-    pub fn mean_response_time(&mut self) -> (u128, u128, u128, u128) {
-        self.response_time.sort();
-        let k = self.response_time.len();
-
-        let p50 = self.get_nth_response_time(k * 50 / 100);
-        let p90 = self.get_nth_response_time(k * 90 / 100);
-        let p95 = self.get_nth_response_time(k * 95 / 100);
-        let p99 = self.get_nth_response_time(k * 99 / 100);
-
-        (p50, p90, p95, p99)
-    }
-
-    fn get_nth_response_time(&self, index: usize) -> u128 {
-        let p = self
-            .response_time
-            .get(index)
-            .ok_or_else(|| panic!("Failed to get {}th index.", index))
-            .unwrap();
-
-        *p
-    }
 }

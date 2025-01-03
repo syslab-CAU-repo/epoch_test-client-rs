@@ -1,11 +1,11 @@
-generator_threads = 1
+total_transactions = 10000
 connection_threads = 4
-connections = 200
-duration = 5
+connections = 500
+duration = 10
 ethereum_rpc_url = "http://34.47.75.30:8545"
 # rpc_url = "http://34.47.75.30:8545"
 rpc_url = "http://34.47.85.214:3000"
-request_timeout = 60
+request_timeout = 10
 signing_keys = [
     "0x79034809c2b4bd3c77a0ef831d4136c4779f1d1e4fe4b0c5b104a0e5a75a5a41",
     "0xbf7e9ae142fbac146ba384f3252cece53a3dcf433ae0f4d7cdeb3e1c367b9474",
