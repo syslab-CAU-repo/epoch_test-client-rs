@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let connections = (0..config.connections())
         .map(|_| Connection::new(config.rpc_url(), config.request_timeout(), receiver.clone()))
         .collect::<Result<Vec<Connection>, ConnectionError>>()?;
-    let connection_handles: Vec<JoinHandle<Connection>> = connections
+    let connection_handles: Vec<JoinHandle<Statistics>> = connections
         .into_iter()
         .map(|connection| runtime.spawn(connection.init()))
         .collect();
@@ -93,20 +93,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     drop(sender);
 
-    let statistics = runtime.block_on(async move {
-        let mut statistics = Statistics::default();
+    let mut statistics = runtime.block_on(async move {
+        let mut aggregated = Statistics::default();
 
         for connection in connection_handles.into_iter() {
-            let connection = connection.await.unwrap();
-            statistics.total += connection.statistics().total;
-            statistics.success += connection.statistics().success;
-            statistics.failure += connection.statistics().failure;
+            let statistics = connection.await.unwrap();
+            aggregated.total += statistics.total;
+            aggregated.success += statistics.success;
+            aggregated.failure += statistics.failure;
+            aggregated.response_time.extend(statistics.response_time);
         }
 
-        statistics
+        aggregated
     });
 
-    tracing::info!("{:?}", statistics);
+    let tps = statistics.tps(config.duration());
+    let (p50, p90, p95, p99) = statistics.mean_response_time();
+
+    tracing::info!(
+        "Total: {}\nSuccess: {}\nFailure: {}\nTPS: {}\nLatency(ms):\n\tp50: {}\n\tp90: {}\n\tp95: {}\n\tp99: {}",
+        statistics.total,
+        statistics.success,
+        statistics.failure,
+        tps,
+        p50, p90, p95, p99
+    );
 
     Ok(())
 }
