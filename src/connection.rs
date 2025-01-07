@@ -1,10 +1,18 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use alloy::primitives::FixedBytes;
 use jsonrpsee::{core::client::ClientT, http_client::HttpClient};
-use tokio::sync::{mpsc, Mutex};
+use tokio::{
+    sync::{mpsc, Mutex},
+    time::{Duration, Instant},
+};
 
-use crate::transaction::{EthRawTransaction, RawTransaction, Transaction, TransactionResponse};
+use crate::{
+    statistics::Statistics,
+    transaction::{
+        EthRawTransaction, OrderCommitment, RawTransaction, Transaction, TransactionResponse,
+    },
+};
 
 pub type Sender = mpsc::Sender<Transaction>;
 pub type Receiver = Arc<Mutex<mpsc::Receiver<Transaction>>>;
@@ -17,14 +25,14 @@ pub fn connection_channel(size: usize) -> (Sender, Receiver) {
 }
 
 pub struct Connection {
-    rpc_client: HttpClient,
     statistics: Statistics,
-    responses: Vec<TransactionResponse>,
+    rpc_client: HttpClient,
     receiver: Receiver,
 }
 
 impl Connection {
     pub fn new(
+        statistics: Statistics,
         rpc_url: impl AsRef<str>,
         request_timeout: u64,
         receiver: Receiver,
@@ -35,41 +43,34 @@ impl Connection {
             .map_err(ConnectionError::InitRpcClient)?;
 
         Ok(Self {
+            statistics,
             rpc_client,
-            statistics: Statistics::default(),
-            responses: vec![],
             receiver,
         })
     }
 
-    pub fn statistics(&self) -> &Statistics {
-        &self.statistics
-    }
-
-    pub async fn init(mut self) -> Self {
+    pub async fn init(self) {
         loop {
             let mut receiver = self.receiver.lock().await;
             if let Some(transaction) = receiver.recv().await {
                 drop(receiver);
 
+                let time_start = Instant::now();
+                self.statistics.sent().await;
                 match self.send_transaction(transaction).await {
-                    Ok(transaction_response) => {
-                        self.statistics.total += 1;
-                        self.statistics.success += 1;
-                        self.responses.push(transaction_response);
+                    Ok(response) => {
+                        let response_time = time_start.elapsed().as_millis();
+                        self.statistics.succeed(response, response_time).await;
                     }
                     Err(error) => {
-                        self.statistics.total += 1;
-                        self.statistics.failure += 1;
-                        tracing::error!("{:?}", error);
+                        let response_time = time_start.elapsed().as_millis();
+                        self.statistics.failed(error, response_time).await;
                     }
                 }
             } else {
                 break;
             }
         }
-
-        self
     }
 
     pub async fn send_transaction(
@@ -106,20 +107,13 @@ impl Connection {
     ) -> Result<TransactionResponse, ConnectionError> {
         match self
             .rpc_client
-            .request::<String, RawTransaction>("send_raw_transaction", transaction)
+            .request::<OrderCommitment, RawTransaction>("send_raw_transaction", transaction)
             .await
         {
             Ok(response) => Ok(TransactionResponse::OrderCommitment(response)),
             Err(error) => Err(ConnectionError::Request(Method::SendRawTransaction, error)),
         }
     }
-}
-
-#[derive(Debug, Default)]
-pub struct Statistics {
-    pub total: u64,
-    pub success: u32,
-    pub failure: u32,
 }
 
 #[derive(Debug)]

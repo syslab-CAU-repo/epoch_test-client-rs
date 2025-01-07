@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
 #[derive(Clone, Debug, Serialize)]
-#[serde(untagged)]
 pub enum Transaction {
     EthRaw(EthRawTransaction),
     Raw(RawTransaction),
@@ -17,10 +16,7 @@ impl Transaction {
     }
 
     pub fn raw_transaction(rollup_id: String, encoded_transaction: String) -> Self {
-        Self::Raw(RawTransaction {
-            rollup_id,
-            raw_transaction: encoded_transaction,
-        })
+        Self::Raw((rollup_id, encoded_transaction).into())
     }
 }
 
@@ -44,7 +40,25 @@ impl ToRpcParams for EthRawTransaction {
 #[derive(Clone, Debug, Serialize)]
 pub struct RawTransaction {
     rollup_id: String,
-    raw_transaction: String,
+    raw_transaction: RawTransactionInner,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type", content = "data")]
+#[serde(rename_all = "snake_case")]
+#[allow(unused)]
+enum RawTransactionInner {
+    Eth(String),
+    EthBundle(String),
+}
+
+impl From<(String, String)> for RawTransaction {
+    fn from(value: (String, String)) -> Self {
+        Self {
+            rollup_id: value.0,
+            raw_transaction: RawTransactionInner::Eth(value.1),
+        }
+    }
 }
 
 impl ToRpcParams for RawTransaction {
@@ -55,8 +69,22 @@ impl ToRpcParams for RawTransaction {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug)]
 pub enum TransactionResponse {
     TransactionHash(FixedBytes<32>),
-    OrderCommitment(String),
+    OrderCommitment(OrderCommitment),
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct OrderCommitment {
+    pub data: OrderCommitmentData,
+    pub signature: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct OrderCommitmentData {
+    pub rollup_id: String,
+    pub block_height: u64,
+    pub transaction_order: u64,
+    pub pre_merkle_path: Vec<String>,
 }

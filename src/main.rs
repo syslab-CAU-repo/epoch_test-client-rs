@@ -4,8 +4,8 @@ use test_client_rs::{
     self,
     account::{Account, Accounts},
     config::Config,
-    connection::{connection_channel, Connection, ConnectionError, Statistics},
-    generator::{Flag, Generator},
+    connection::{connection_channel, Connection, ConnectionError},
+    statistics::Statistics,
     transaction::Transaction,
 };
 use tokio::{task::JoinHandle, time::interval};
@@ -20,13 +20,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .to_owned();
     let config = Config::open(&config_path)?;
 
-    // Panics if the sum of generator and connection threads exceeds the number of
-    // cores available.
-    let total_threads = config.generator_threads() + config.connection_threads();
+    // Panics if the connection threads exceeds the number of cores available.
+    let connection_threads = config.connection_threads();
     let available_threads = std::thread::available_parallelism()
         .expect("Failed to get the available threads.")
         .get();
-    if total_threads > available_threads {
+    if connection_threads > available_threads {
         panic!(
             "The sum of generator and connection threads cannot exceed the available threads({}).",
             available_threads
@@ -36,20 +35,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the async runtime.
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .worker_threads(total_threads)
+        .worker_threads(connection_threads)
         .max_blocking_threads(1)
         .build()?;
-
-    // Initialize connections
-    let (sender, receiver) = connection_channel(config.connections());
-    let connections = (0..config.connections())
-        .map(|_| Connection::new(config.rpc_url(), config.request_timeout(), receiver.clone()))
-        .collect::<Result<Vec<Connection>, ConnectionError>>()?;
-    let connection_handles: Vec<JoinHandle<Connection>> = connections
-        .into_iter()
-        .map(|connection| runtime.spawn(connection.init()))
-        .collect();
-    tracing::info!("Initialized {} connections.", config.connections());
 
     // Initialize accounts from signing keys and set their nonces.
     let accounts = runtime.block_on(Account::from_config(&config))?;
@@ -62,22 +50,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     });
 
-    // Initialize generators.
-    let flag = Flag::default();
-    (0..config.generator_threads()).for_each(|_| {
-        runtime.spawn(Generator::init(
-            flag.clone(),
-            transaction,
-            accounts.clone(),
-            sender.clone(),
-        ));
-    });
-    tracing::info!("Initialized {} generator.", config.generator_threads());
+    // Initialize the transaction queues.
+    let (sender, receiver) = connection_channel(config.total_transactions());
+
+    // Prefill the connection queue with transactions.
+    for _ in 0..config.total_transactions() {
+        let transaction = runtime.block_on(transaction(accounts.clone()));
+        sender.blocking_send(transaction)?;
+    }
+
+    // Initialize the statistics.
+    let statistics = Statistics::new(config.total_transactions(), config.duration());
+
+    // Initialize connections.
+    let connections = (0..config.connections())
+        .map(|_| {
+            Connection::new(
+                statistics.clone(),
+                config.rpc_url(),
+                config.request_timeout(),
+                receiver.clone(),
+            )
+        })
+        .collect::<Result<Vec<Connection>, ConnectionError>>()?;
+    let connection_handles: Vec<JoinHandle<()>> = connections
+        .into_iter()
+        .map(|connection| runtime.spawn(connection.init()))
+        .collect();
+    tracing::info!("Initialized {} connections.", config.connections());
 
     // Initialize the ticker.
-    runtime.spawn({
+    runtime.block_on({
         let duration = config.duration();
-        let flag = flag.clone();
 
         async move {
             let mut interval = interval(Duration::from_secs(1));
@@ -88,25 +92,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 tracing::info!("{} seconds passed..", second + 1);
             }
 
-            flag.stop();
+            drop(sender);
         }
     });
-    drop(sender);
 
-    let statistics = runtime.block_on(async move {
-        let mut statistics = Statistics::default();
+    for connection in connection_handles.into_iter() {
+        connection.abort();
+    }
 
-        for connection in connection_handles.into_iter() {
-            let connection = connection.await.unwrap();
-            statistics.total += connection.statistics().total;
-            statistics.success += connection.statistics().success;
-            statistics.failure += connection.statistics().failure;
-        }
-
-        statistics
-    });
-
-    tracing::info!("{:?}", statistics);
+    statistics.print_stats();
 
     Ok(())
 }

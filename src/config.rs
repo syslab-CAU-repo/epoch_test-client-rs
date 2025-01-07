@@ -8,7 +8,7 @@ pub struct Config {
 
 #[derive(Debug, Deserialize, Serialize)]
 struct ConfigInner {
-    generator_threads: usize,
+    total_transactions: usize,
     connection_threads: usize,
     connections: usize,
     duration: u64,
@@ -34,8 +34,8 @@ impl Clone for Config {
 }
 
 impl Config {
-    pub fn generator_threads(&self) -> usize {
-        self.inner.generator_threads
+    pub fn total_transactions(&self) -> usize {
+        self.inner.total_transactions
     }
 
     pub fn connection_threads(&self) -> usize {
