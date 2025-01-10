@@ -60,7 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Initialize the statistics.
-    let statistics = Statistics::new(config.total_transactions(), config.duration());
+    let statistics = Statistics::new(config.total_transactions());
 
     // Initialize connections.
     let connections = (0..config.connections())
