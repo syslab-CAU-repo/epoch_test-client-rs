@@ -57,7 +57,11 @@ impl Account {
             .map(|signing_key| Self::new(config.clone(), signing_key))
             .collect::<Result<Vec<Self>, AccountError>>()?;
 
-        let rpc_client = RpcClient::new().map_err(AccountError::InitRpcClient)?;
+        let rpc_client = RpcClient::builder()
+            .connection_timeout(config.request_timeout() * 1000)
+            .build()
+            .map_err(AccountError::InitRpcClient)?;
+
         let mut batch_request = BatchRequest::new();
         accounts
             .iter()

@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use alloy::primitives::FixedBytes;
-// use jsonrpsee::{core::client::ClientT, http_client::HttpClient};
 use radius_sdk::json_rpc::client::{Id, RpcClient};
 use tokio::{
     sync::{mpsc, Mutex},
@@ -40,7 +39,7 @@ impl Connection {
         receiver: Receiver,
     ) -> Result<Self, ConnectionError> {
         let rpc_client = RpcClient::builder()
-            .connection_timeout(config.request_timeout())
+            .connection_timeout(config.request_timeout() * 1000)
             .build()
             .map_err(ConnectionError::InitRpcClient)?;
 
@@ -104,10 +103,14 @@ impl Connection {
             .await
         {
             Ok(response) => Ok(TransactionResponse::TransactionHash(response)),
-            Err(error) => Err(ConnectionError::Request(
-                Method::SendEthRawTransaction,
-                error,
-            )),
+            Err(error) => {
+                tracing::error!("{}", error);
+
+                Err(ConnectionError::Request(
+                    Method::SendEthRawTransaction,
+                    error,
+                ))
+            }
         }
     }
 
@@ -145,7 +148,10 @@ impl Connection {
             .await
         {
             Ok(response) => Ok(TransactionResponse::OrderCommitment(response)),
-            Err(error) => Err(ConnectionError::Request(Method::SendRawTransaction, error)),
+            Err(error) => Err(ConnectionError::Request(
+                Method::SendEncryptedTransaction,
+                error,
+            )),
         }
     }
 }
@@ -168,4 +174,5 @@ impl std::error::Error for ConnectionError {}
 pub enum Method {
     SendEthRawTransaction,
     SendRawTransaction,
+    SendEncryptedTransaction,
 }
