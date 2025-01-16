@@ -64,14 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize connections.
     let connections = (0..config.connections())
-        .map(|_| {
-            Connection::new(
-                statistics.clone(),
-                config.rpc_url(),
-                config.request_timeout(),
-                receiver.clone(),
-            )
-        })
+        .map(|_| Connection::new(config.clone(), statistics.clone(), receiver.clone()))
         .collect::<Result<Vec<Connection>, ConnectionError>>()?;
     let connection_handles: Vec<JoinHandle<()>> = connections
         .into_iter()
@@ -105,7 +98,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[inline(always)]
 async fn transaction(accounts: Accounts) -> Transaction {
     use alloy::{
         eips::eip2718::Encodable2718, network::TransactionBuilder, primitives::U256,

@@ -1,13 +1,15 @@
 use std::sync::Arc;
 
 use alloy::primitives::FixedBytes;
-use jsonrpsee::{core::client::ClientT, http_client::HttpClient};
+// use jsonrpsee::{core::client::ClientT, http_client::HttpClient};
+use radius_sdk::json_rpc::client::{Id, RpcClient};
 use tokio::{
     sync::{mpsc, Mutex},
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use crate::{
+    config::Config,
     statistics::Statistics,
     transaction::{
         EthRawTransaction, OrderCommitment, RawTransaction, Transaction, TransactionResponse,
@@ -25,24 +27,25 @@ pub fn connection_channel(size: usize) -> (Sender, Receiver) {
 }
 
 pub struct Connection {
+    config: Config,
     statistics: Statistics,
-    rpc_client: HttpClient,
+    rpc_client: RpcClient,
     receiver: Receiver,
 }
 
 impl Connection {
     pub fn new(
+        config: Config,
         statistics: Statistics,
-        rpc_url: impl AsRef<str>,
-        request_timeout: u64,
         receiver: Receiver,
     ) -> Result<Self, ConnectionError> {
-        let rpc_client = HttpClient::builder()
-            .request_timeout(Duration::from_secs(request_timeout))
-            .build(rpc_url)
+        let rpc_client = RpcClient::builder()
+            .connection_timeout(config.request_timeout())
+            .build()
             .map_err(ConnectionError::InitRpcClient)?;
 
         Ok(Self {
+            config,
             statistics,
             rpc_client,
             receiver,
@@ -80,7 +83,9 @@ impl Connection {
         match transaction {
             Transaction::EthRaw(transaction) => self.send_eth_raw_transaction(transaction).await,
             Transaction::Raw(transaction) => self.send_raw_transaction(transaction).await,
-            others => unimplemented!("Transaction type {:?} is unhandled.", others),
+            Transaction::Encrypted(transaction) => {
+                self.send_encrypted_transaction(transaction).await
+            }
         }
     }
 
@@ -90,7 +95,12 @@ impl Connection {
     ) -> Result<TransactionResponse, ConnectionError> {
         match self
             .rpc_client
-            .request::<FixedBytes<32>, EthRawTransaction>("eth_sendRawTransaction", transaction)
+            .request::<EthRawTransaction, FixedBytes<32>>(
+                self.config.rpc_url(),
+                "eth_sendRawTransaction",
+                transaction,
+                Id::Null,
+            )
             .await
         {
             Ok(response) => Ok(TransactionResponse::TransactionHash(response)),
@@ -107,7 +117,31 @@ impl Connection {
     ) -> Result<TransactionResponse, ConnectionError> {
         match self
             .rpc_client
-            .request::<OrderCommitment, RawTransaction>("send_raw_transaction", transaction)
+            .request::<RawTransaction, OrderCommitment>(
+                self.config.rpc_url(),
+                "send_raw_transaction",
+                transaction,
+                Id::Null,
+            )
+            .await
+        {
+            Ok(response) => Ok(TransactionResponse::OrderCommitment(response)),
+            Err(error) => Err(ConnectionError::Request(Method::SendRawTransaction, error)),
+        }
+    }
+
+    pub async fn send_encrypted_transaction(
+        &self,
+        transaction: RawTransaction,
+    ) -> Result<TransactionResponse, ConnectionError> {
+        match self
+            .rpc_client
+            .request::<RawTransaction, OrderCommitment>(
+                self.config.rpc_url(),
+                "send_encrypted_transaction",
+                transaction,
+                Id::Null,
+            )
             .await
         {
             Ok(response) => Ok(TransactionResponse::OrderCommitment(response)),
@@ -118,8 +152,8 @@ impl Connection {
 
 #[derive(Debug)]
 pub enum ConnectionError {
-    InitRpcClient(jsonrpsee::core::ClientError),
-    Request(Method, jsonrpsee::core::ClientError),
+    InitRpcClient(radius_sdk::json_rpc::client::RpcClientError),
+    Request(Method, radius_sdk::json_rpc::client::RpcClientError),
 }
 
 impl std::fmt::Display for ConnectionError {

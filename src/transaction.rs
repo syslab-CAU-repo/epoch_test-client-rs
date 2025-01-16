@@ -1,71 +1,48 @@
 use alloy::primitives::FixedBytes;
-use jsonrpsee::core::traits::ToRpcParams;
 use serde::{Deserialize, Serialize};
-use serde_json::value::RawValue;
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug)]
 pub enum Transaction {
     EthRaw(EthRawTransaction),
     Raw(RawTransaction),
-    Encrypted(String),
+    Encrypted(RawTransaction),
 }
 
 impl Transaction {
     pub fn eth_raw_transaction(encoded_transaction: String) -> Self {
-        Self::EthRaw(encoded_transaction.into())
+        Self::EthRaw(EthRawTransaction::new(encoded_transaction))
     }
 
     pub fn raw_transaction(rollup_id: String, encoded_transaction: String) -> Self {
-        Self::Raw((rollup_id, encoded_transaction).into())
+        Self::Raw(RawTransaction::new(rollup_id, encoded_transaction))
+    }
+
+    pub fn encrypted_transaction(rollup_id: String, encoded_transaction: String) -> Self {
+        Self::Encrypted(RawTransaction::new(rollup_id, encoded_transaction))
     }
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub struct EthRawTransaction(Vec<String>);
 
-impl From<String> for EthRawTransaction {
-    fn from(value: String) -> Self {
-        Self(vec![value])
-    }
-}
-
-impl ToRpcParams for EthRawTransaction {
-    fn to_rpc_params(self) -> Result<Option<Box<RawValue>>, serde_json::Error> {
-        let json = serde_json::to_string(&self)?;
-
-        RawValue::from_string(json).map(Some)
+impl EthRawTransaction {
+    pub fn new(encoded_transaction: String) -> Self {
+        Self(vec![encoded_transaction])
     }
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub struct RawTransaction {
     rollup_id: String,
-    raw_transaction: RawTransactionInner,
+    raw_transaction: String,
 }
 
-#[derive(Clone, Debug, Serialize)]
-#[serde(tag = "type", content = "data")]
-#[serde(rename_all = "snake_case")]
-#[allow(unused)]
-enum RawTransactionInner {
-    Eth(String),
-    EthBundle(String),
-}
-
-impl From<(String, String)> for RawTransaction {
-    fn from(value: (String, String)) -> Self {
+impl RawTransaction {
+    pub fn new(rollup_id: String, encoded_transaction: String) -> Self {
         Self {
-            rollup_id: value.0,
-            raw_transaction: RawTransactionInner::Eth(value.1),
+            rollup_id,
+            raw_transaction: encoded_transaction,
         }
-    }
-}
-
-impl ToRpcParams for RawTransaction {
-    fn to_rpc_params(self) -> Result<Option<Box<RawValue>>, serde_json::Error> {
-        let json = serde_json::to_string(&self)?;
-
-        RawValue::from_string(json).map(Some)
     }
 }
 
