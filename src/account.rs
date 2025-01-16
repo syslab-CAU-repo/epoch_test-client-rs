@@ -58,7 +58,7 @@ impl Account {
             .collect::<Result<Vec<Self>, AccountError>>()?;
 
         let rpc_client = RpcClient::builder()
-            .connection_timeout(config.request_timeout() * 1000)
+            .request_timeout(config.request_timeout() * 1000)
             .build()
             .map_err(AccountError::InitRpcClient)?;
 
