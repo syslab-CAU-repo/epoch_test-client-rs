@@ -64,14 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize connections.
     let connections = (0..config.connections())
-        .map(|_| {
-            Connection::new(
-                statistics.clone(),
-                config.rpc_url(),
-                config.request_timeout(),
-                receiver.clone(),
-            )
-        })
+        .map(|_| Connection::new(config.clone(), statistics.clone(), receiver.clone()))
         .collect::<Result<Vec<Connection>, ConnectionError>>()?;
     let connection_handles: Vec<JoinHandle<()>> = connections
         .into_iter()
@@ -105,7 +98,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[inline(always)]
 async fn transaction(accounts: Accounts) -> Transaction {
     use alloy::{
         eips::eip2718::Encodable2718, network::TransactionBuilder, primitives::U256,
@@ -128,6 +120,7 @@ async fn transaction(accounts: Accounts) -> Transaction {
     let envelope = transaction.build(from.wallet()).await.unwrap();
     let encoded_transaction = const_hex::encode_prefixed(envelope.encoded_2718());
 
-    // Transaction::eth_raw_transaction(encoded_transaction)
-    Transaction::raw_transaction(from.config().rollup_id().to_owned(), encoded_transaction)
+    Transaction::eth_raw_transaction(encoded_transaction)
+    // Transaction::raw_transaction(from.config().rollup_id().to_owned(),
+    // encoded_transaction)
 }

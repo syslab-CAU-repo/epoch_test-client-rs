@@ -4,7 +4,6 @@ use std::{
         atomic::{AtomicU64, Ordering},
         Arc,
     },
-    time::Duration,
 };
 
 use alloy::{
@@ -17,10 +16,7 @@ use alloy::{
     signers::local::PrivateKeySigner,
     transports::http::{Client, Http},
 };
-use jsonrpsee::{
-    core::{client::ClientT, params::BatchRequestBuilder},
-    http_client::HttpClient,
-};
+use radius_sdk::json_rpc::client::{BatchRequest, RpcClient};
 
 use crate::config::Config;
 
@@ -61,27 +57,30 @@ impl Account {
             .map(|signing_key| Self::new(config.clone(), signing_key))
             .collect::<Result<Vec<Self>, AccountError>>()?;
 
-        let rpc_client = HttpClient::builder()
-            .request_timeout(Duration::from_secs(config.request_timeout()))
-            .build(config.ethereum_rpc_url())
+        let rpc_client = RpcClient::builder()
+            .request_timeout(config.request_timeout() * 1000)
+            .build()
             .map_err(AccountError::InitRpcClient)?;
 
-        let mut batch_request = BatchRequestBuilder::new();
-        accounts.iter().try_for_each(|account| {
-            let parameter: Vec<String> = vec![account.address().to_string(), "latest".to_owned()];
-            batch_request
-                .insert("eth_getTransactionCount", parameter)
-                .map_err(AccountError::BuildBatchRequest)
-        })?;
+        let mut batch_request = BatchRequest::new();
+        accounts
+            .iter()
+            .enumerate()
+            .try_for_each(|(index, account)| {
+                let parameter: Vec<String> =
+                    vec![account.address().to_string(), "latest".to_owned()];
+                batch_request
+                    .push("eth_getTransactionCount", &parameter, index as i64)
+                    .map_err(AccountError::BuildBatchRequest)
+            })?;
 
         let batch_response = rpc_client
-            .batch_request::<String>(batch_request)
+            .batch_request(config.ethereum_rpc_url(), &batch_request)
             .await
             .map_err(AccountError::BatchRequest)?;
 
         for (response, account) in batch_response.into_iter().zip(accounts.iter()) {
-            let nonce_string = response
-                .map_err(|error| AccountError::BatchResponse(error.message().to_owned()))?;
+            let nonce_string: String = response.parse().map_err(AccountError::BatchResponse)?;
 
             let nonce =
                 u64::from_str_radix(&nonce_string[2..], 16).map_err(AccountError::ParseNonce)?;
@@ -142,10 +141,10 @@ pub enum AccountError {
     ParseNonce(std::num::ParseIntError),
     Signer(alloy::signers::local::LocalSignerError),
     Provider(url::ParseError),
-    InitRpcClient(jsonrpsee::core::ClientError),
-    BuildBatchRequest(serde_json::Error),
-    BatchRequest(jsonrpsee::core::ClientError),
-    BatchResponse(String),
+    InitRpcClient(radius_sdk::json_rpc::client::RpcClientError),
+    BuildBatchRequest(radius_sdk::json_rpc::client::RpcClientError),
+    BatchRequest(radius_sdk::json_rpc::client::RpcClientError),
+    BatchResponse(radius_sdk::json_rpc::client::RpcClientError),
 }
 
 impl std::fmt::Display for AccountError {
