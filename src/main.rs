@@ -1,5 +1,6 @@
 use std::{env, time::Duration};
 
+use alloy::primitives::TxKind;
 use test_client_rs::{
     self,
     account::{Account, Accounts},
@@ -109,14 +110,15 @@ async fn raw_transaction(accounts: Accounts) -> Transaction {
     let from = accounts.get(0).unwrap();
     let to = accounts.choose(&mut rand::thread_rng()).unwrap();
 
-    let transaction = TransactionRequest::default()
-        .with_to(to.address())
-        .with_nonce(from.fetch_add_nonce())
-        .with_chain_id(to.config().chain_id())
-        .with_value(U256::from(1))
-        .with_gas_limit(21_000)
-        .with_max_priority_fee_per_gas(1_000_000_000)
-        .with_max_fee_per_gas(20_000_000_000);
+    let transaction = TransactionRequest {
+        chain_id: Some(to.config().chain_id()),
+        to: Some(TxKind::Call(to.address())),
+        nonce: Some(from.fetch_add_nonce()),
+        gas: Some(21_000),
+        gas_price: Some(1_000_000_000),
+        value: Some(U256::from(1)),
+        ..Default::default()
+    };
 
     let envelope = transaction.build(from.wallet()).await.unwrap();
     let encoded_transaction = const_hex::encode_prefixed(envelope.encoded_2718());
@@ -135,14 +137,15 @@ async fn encrypted_transaction(accounts: Accounts) -> Transaction {
     let from = accounts.get(0).unwrap();
     let to = accounts.choose(&mut rand::thread_rng()).unwrap();
 
-    let transaction = TransactionRequest::default()
-        .with_to(to.address())
-        .with_nonce(from.fetch_add_nonce())
-        .with_chain_id(to.config().chain_id())
-        .with_value(U256::from(1))
-        .with_gas_limit(21_000)
-        .with_max_priority_fee_per_gas(1_000_000_000)
-        .with_max_fee_per_gas(20_000_000_000);
+    let transaction = TransactionRequest {
+        chain_id: Some(to.config().chain_id()),
+        to: Some(TxKind::Call(to.address())),
+        nonce: Some(from.fetch_add_nonce()),
+        gas: Some(21_000),
+        gas_price: Some(1_000_000_000),
+        value: Some(U256::from(1)),
+        ..Default::default()
+    };
 
     let envelope = transaction.build(from.wallet()).await.unwrap();
     let encoded_transaction = const_hex::encode_prefixed(envelope.encoded_2718());
