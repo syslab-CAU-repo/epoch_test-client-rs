@@ -34,14 +34,24 @@ impl EthRawTransaction {
 #[derive(Clone, Debug, Serialize)]
 pub struct RawTransaction {
     rollup_id: String,
-    raw_transaction: String,
+    raw_transaction: RawTransactionData,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct RawTransactionData {
+    #[serde(rename = "type")]
+    transaction_type: String,
+    data: String,
 }
 
 impl RawTransaction {
     pub fn new(rollup_id: String, encoded_transaction: String) -> Self {
         Self {
             rollup_id,
-            raw_transaction: encoded_transaction,
+            raw_transaction: RawTransactionData {
+                transaction_type: "eth".to_owned(),
+                data: encoded_transaction,
+            },
         }
     }
 }

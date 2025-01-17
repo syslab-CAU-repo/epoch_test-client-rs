@@ -65,6 +65,7 @@ impl Connection {
                         self.statistics.succeed(response, response_time).await;
                     }
                     Err(error) => {
+                        tracing::error!("{}", error);
                         let response_time = time_start.elapsed().as_millis();
                         self.statistics.failed(error, response_time).await;
                     }
