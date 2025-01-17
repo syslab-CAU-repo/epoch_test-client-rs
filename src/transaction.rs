@@ -46,7 +46,8 @@ impl RawTransaction {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize)]
+
 pub enum TransactionResponse {
     TransactionHash(FixedBytes<32>),
     OrderCommitment(OrderCommitment),

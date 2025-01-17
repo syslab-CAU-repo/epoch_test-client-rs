@@ -107,7 +107,7 @@ async fn raw_transaction(accounts: Accounts) -> Transaction {
     use rand::seq::SliceRandom;
 
     let from = accounts.get(0).unwrap();
-    let to = accounts[1..].choose(&mut rand::thread_rng()).unwrap();
+    let to = accounts.choose(&mut rand::thread_rng()).unwrap();
 
     let transaction = TransactionRequest::default()
         .with_to(to.address())
@@ -133,7 +133,7 @@ async fn encrypted_transaction(accounts: Accounts) -> Transaction {
     use rand::seq::SliceRandom;
 
     let from = accounts.get(0).unwrap();
-    let to = accounts[1..].choose(&mut rand::thread_rng()).unwrap();
+    let to = accounts.choose(&mut rand::thread_rng()).unwrap();
 
     let transaction = TransactionRequest::default()
         .with_to(to.address())
