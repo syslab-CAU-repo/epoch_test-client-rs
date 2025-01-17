@@ -1,6 +1,6 @@
-total_transactions = 30
+total_transactions = 1
 connection_threads = 8
-connections = 1000
+connections = 1
 duration = 3
 ethereum_rpc_url = "http://34.116.221.186:9000"
 rpc_url = "http://34.116.221.186:9000"
