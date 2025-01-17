@@ -1,10 +1,12 @@
 total_transactions = 10000
-connection_threads = 4
-connections = 500
-duration = 10
+connection_threads = 8
+connections = 1000
+duration = 3
 ethereum_rpc_url = "http://34.47.75.30:8545"
 rpc_url = "http://34.47.75.30:8545"
 request_timeout = 10
+chain_id = 1001
+rollup_id = "radius_rollup"
 signing_keys = [
     "0x79034809c2b4bd3c77a0ef831d4136c4779f1d1e4fe4b0c5b104a0e5a75a5a41",
     "0xbf7e9ae142fbac146ba384f3252cece53a3dcf433ae0f4d7cdeb3e1c367b9474",
@@ -37,4 +39,3 @@ signing_keys = [
     "0xc241632d52ae23ec30cc488bb248c122c2f38c5dec869ea2d6d1d7e7f57191b7",
     "0x811bbcd6295913e28963ac811b5bb4794ab1ab2d50baf66bc81eab800ae24380",
 ]
-rollup_id = "radius_rollup"

@@ -15,8 +15,9 @@ struct ConfigInner {
     ethereum_rpc_url: String,
     rpc_url: String,
     request_timeout: u64,
-    signing_keys: Vec<String>,
+    chain_id: u64,
     rollup_id: String,
+    signing_keys: Vec<String>,
 }
 
 impl std::fmt::Debug for Config {
@@ -62,12 +63,16 @@ impl Config {
         self.inner.request_timeout
     }
 
-    pub fn signing_keys(&self) -> &Vec<String> {
-        &self.inner.signing_keys
+    pub fn chain_id(&self) -> u64 {
+        self.inner.chain_id
     }
 
     pub fn rollup_id(&self) -> &str {
         &self.inner.rollup_id
+    }
+
+    pub fn signing_keys(&self) -> &Vec<String> {
+        &self.inner.signing_keys
     }
 
     pub fn open(path: impl AsRef<Path>) -> Result<Self, ConfigError> {
