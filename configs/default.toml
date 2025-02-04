@@ -1,9 +1,9 @@
-total_transactions = 1
-connection_threads = 8
-connections = 1
+total_transactions = 20000
+connection_threads = 4
+connections = 200
 duration = 3
-ethereum_rpc_url = "http://34.116.221.186:9000"
-rpc_url = "http://34.116.221.186:9000"
+ethereum_rpc_url = "http://34.64.43.26:8545"
+rpc_url = "http://127.0.0.1:8000"
 request_timeout = 10
 chain_id = 1001
 rollup_id = "radius_rollup"

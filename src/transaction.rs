@@ -60,7 +60,7 @@ impl RawTransaction {
 
 pub enum TransactionResponse {
     TransactionHash(FixedBytes<32>),
-    OrderCommitment(OrderCommitment),
+    OrderCommitment(serde_json::Value),
 }
 
 #[derive(Clone, Debug, Deserialize)]

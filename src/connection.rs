@@ -10,9 +10,7 @@ use tokio::{
 use crate::{
     config::Config,
     statistics::Statistics,
-    transaction::{
-        EthRawTransaction, OrderCommitment, RawTransaction, Transaction, TransactionResponse,
-    },
+    transaction::{EthRawTransaction, RawTransaction, Transaction, TransactionResponse},
 };
 
 pub type Sender = mpsc::Sender<Transaction>;
@@ -121,7 +119,7 @@ impl Connection {
     ) -> Result<TransactionResponse, ConnectionError> {
         match self
             .rpc_client
-            .request::<RawTransaction, OrderCommitment>(
+            .request::<RawTransaction, serde_json::Value>(
                 self.config.rpc_url(),
                 "send_raw_transaction",
                 transaction,
@@ -140,7 +138,7 @@ impl Connection {
     ) -> Result<TransactionResponse, ConnectionError> {
         match self
             .rpc_client
-            .request::<RawTransaction, OrderCommitment>(
+            .request::<RawTransaction, serde_json::Value>(
                 self.config.rpc_url(),
                 "send_encrypted_transaction",
                 transaction,
