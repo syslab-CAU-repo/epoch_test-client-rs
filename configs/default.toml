@@ -1,12 +1,12 @@
-total_transactions = 20000
+total_transactions = 10000
 connection_threads = 4
-connections = 200
-duration = 3
-ethereum_rpc_url = "http://34.64.43.26:8545"
-rpc_url = "http://127.0.0.1:8000"
-request_timeout = 10
+connections = 20
+duration = 50
+ethereum_rpc_url = "https://holesky.infura.io/v3/142fd9035a264c2ab543d68f13795fad"
+rpc_url = "http://34.64.51.210:9000"
+request_timeout = 15
 chain_id = 1001
-rollup_id = "radius_rollup"
+rollup_id = "rollup_id_2"
 signing_keys = [
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 ]
