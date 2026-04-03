@@ -1,15 +1,23 @@
-use std::{env, time::Duration};
+use std::{
+    collections::HashMap,
+    env,
+    fs::File,
+    io::{BufWriter, Write},
+    path::PathBuf,
+    sync::Arc,
+    time::Duration,
+};
 
 use alloy::primitives::TxKind;
 use test_client_rs::{
     self,
     account::{Account, Accounts},
     config::Config,
-    connection::{connection_channel, Connection, ConnectionError},
+    connection::{connection_channel, Connection, ConnectionError, SendTimeMap},
     statistics::Statistics,
     transaction::Transaction,
 };
-use tokio::{task::JoinHandle, time::interval};
+use tokio::{sync::Mutex, task::JoinHandle, time::interval};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt().init();
@@ -19,6 +27,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .get(0)
         .expect("Provide the configuration file path.")
         .to_owned();
+
+    let send_time_dump_path = arguments
+    .get(1)
+    .map(PathBuf::from)
+    .unwrap_or_else(|| PathBuf::from("send_time_map.jsonl"));
+
     let config = Config::open(&config_path)?;
 
     // Panics if the connection threads exceeds the number of cores available.
@@ -63,10 +77,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the statistics.
     let statistics = Statistics::new(config.total_transactions());
 
+    // Initialize the send time map.
+    let send_time_map: SendTimeMap = Arc::new(Mutex::new(HashMap::new()));
+
     // Initialize connections.
     let connections = (0..config.connections())
-        .map(|_| Connection::new(config.clone(), statistics.clone(), receiver.clone()))
+        .map(|_| {
+            Connection::new(
+                config.clone(),
+                statistics.clone(),
+                receiver.clone(),
+                send_time_map.clone(),
+            )
+        })
         .collect::<Result<Vec<Connection>, ConnectionError>>()?;
+
     let connection_handles: Vec<JoinHandle<()>> = connections
         .into_iter()
         .map(|connection| runtime.spawn(connection.init()))
@@ -94,7 +119,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         connection.abort();
     }
 
+    dump_send_time_map(&runtime, &send_time_map, &send_time_dump_path)?;
+
     statistics.print_stats();
+
+    Ok(())
+}
+
+/// Writes one JSON object per line: `{"raw_transaction":"...", "send_epoch_ms": <u128>}`.
+fn dump_send_time_map(
+    runtime: &tokio::runtime::Runtime,
+    map: &SendTimeMap,
+    path: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let snapshot: HashMap<String, u128> = runtime.block_on(async { map.lock().await.clone() });
+    let count = snapshot.len();
+    let file = File::create(path)?;
+    let mut writer = BufWriter::new(file);
+
+    for (raw_transaction, send_epoch_ms) in snapshot {
+        let line = serde_json::json!({
+            "raw_transaction": raw_transaction,
+            "send_epoch_ms": send_epoch_ms,
+        });
+        writeln!(writer, "{}", line)?;
+    }
+
+    writer.flush()?;
+    tracing::info!("Dumped {} send time entries to {:?}", count, path);
 
     Ok(())
 }

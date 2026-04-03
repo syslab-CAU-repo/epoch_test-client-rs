@@ -20,6 +20,14 @@ impl Transaction {
     pub fn encrypted_transaction(rollup_id: String, encoded_transaction: String) -> Self {
         Self::Encrypted(RawTransaction::new(rollup_id, encoded_transaction))
     }
+
+    /// Identifier for correlating send time with the serialized transaction payload.
+    pub fn tx_key(&self) -> String {
+        match self {
+            Transaction::EthRaw(t) => t.tx_key(),
+            Transaction::Raw(t) | Transaction::Encrypted(t) => t.tx_key(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -28,6 +36,10 @@ pub struct EthRawTransaction(Vec<String>);
 impl EthRawTransaction {
     pub fn new(encoded_transaction: String) -> Self {
         Self(vec![encoded_transaction])
+    }
+
+    pub fn tx_key(&self) -> String {
+        self.0[0].clone()
     }
 }
 
@@ -38,7 +50,7 @@ pub struct RawTransaction {
 }
 
 #[derive(Clone, Debug, Serialize)]
-struct RawTransactionData {
+pub struct RawTransactionData {
     #[serde(rename = "type")]
     transaction_type: String,
     data: String,
@@ -53,6 +65,10 @@ impl RawTransaction {
                 data: encoded_transaction,
             },
         }
+    }
+
+    pub fn tx_key(&self) -> String {
+        self.raw_transaction.data.clone()
     }
 }
 
