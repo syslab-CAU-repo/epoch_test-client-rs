@@ -1,4 +1,8 @@
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use alloy::primitives::FixedBytes;
 use radius_sdk::json_rpc::client::{Id, RpcClient};
@@ -6,6 +10,8 @@ use tokio::{
     sync::{mpsc, Mutex},
     time::Instant,
 };
+
+pub type SendTimeMap = Arc<Mutex<HashMap<String, u128>>>;
 
 use crate::{
     config::Config,
@@ -28,6 +34,7 @@ pub struct Connection {
     statistics: Statistics,
     rpc_client: RpcClient,
     receiver: Receiver,
+    send_time_map: SendTimeMap,
 }
 
 impl Connection {
@@ -35,6 +42,7 @@ impl Connection {
         config: Config,
         statistics: Statistics,
         receiver: Receiver,
+        send_time_map: SendTimeMap,
     ) -> Result<Self, ConnectionError> {
         let rpc_client = RpcClient::builder()
             .request_timeout(config.request_timeout() * 1000)
@@ -46,6 +54,7 @@ impl Connection {
             statistics,
             rpc_client,
             receiver,
+            send_time_map,
         })
     }
 
@@ -55,7 +64,18 @@ impl Connection {
             if let Some(transaction) = receiver.recv().await {
                 drop(receiver);
 
+                let tx_key = transaction.raw_transaction_string().to_owned();
                 let time_start = Instant::now();
+
+                let time_start_ms = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("Time went backwards")
+                    .as_millis();
+                self.send_time_map
+                    .lock()
+                    .await
+                    .insert(tx_key, time_start_ms);
+            
                 self.statistics.sent().await;
                 match self.send_transaction(transaction).await {
                     Ok(response) => {
