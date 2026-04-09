@@ -3,9 +3,9 @@ use std::{
     env,
     fs::File,
     io::{BufWriter, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use alloy::primitives::TxKind;
@@ -98,6 +98,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .collect();
     tracing::info!("Initialized {} connections.", config.connections());
 
+    let experiment_start_epoch_ms = epoch_ms();
+    tracing::info!(
+        "Experiment start (epoch_ms): {}",
+        experiment_start_epoch_ms
+    );
+
     // Initialize the ticker.
     runtime.block_on({
         let duration = config.duration();
@@ -120,13 +126,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     dump_send_time_map(&runtime, &send_time_map, &send_time_dump_path)?;
+    dump_experiment_meta(&send_time_dump_path, experiment_start_epoch_ms)?;
 
     statistics.print_stats();
 
     Ok(())
 }
 
+fn epoch_ms() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time before UNIX epoch")
+        .as_millis()
+}
+
+/// Writes `experiment_start_epoch_ms` next to the send-time dump as `experiment_meta.json`
+/// in the same directory as `send_time_map.jsonl`.
+fn dump_experiment_meta(
+    send_time_dump_path: &Path,
+    experiment_start_epoch_ms: u128,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let path = experiment_meta_path(send_time_dump_path);
+    let file = File::create(&path)?;
+    let value = serde_json::json!({
+        "experiment_start_epoch_ms": experiment_start_epoch_ms,
+    });
+    serde_json::to_writer_pretty(file, &value)?;
+    tracing::info!(
+        "Wrote experiment start time to {:?} (experiment_start_epoch_ms: {})",
+        path,
+        experiment_start_epoch_ms
+    );
+    Ok(())
+}
+
+fn experiment_meta_path(send_time_dump_path: &Path) -> PathBuf {
+    send_time_dump_path.with_file_name("experiment_meta.json")
+}
+
 /// Writes one JSON object per line: `{"raw_transaction":"...", "send_epoch_ms": <u128>}`.
+/// `send_epoch_ms` is UNIX epoch milliseconds—the same unit as `arrived_at_epoch_ms` in `tx_arrival_log_*.csv` from `test-rollup`.
 fn dump_send_time_map(
     runtime: &tokio::runtime::Runtime,
     map: &SendTimeMap,

@@ -24,7 +24,12 @@ If `cargo` treats the config path as its own flag, pass it after `--`:
 cargo run --release -- ./configs/default.toml
 ```
 
-Arguments: first is the config file (required). Second is optional—output path for send timestamps. If you omit it, data goes to `send_time_map.jsonl`, one JSON object per line (`raw_transaction`, `send_epoch_ms`).
+Arguments: first is the config file (required). Second is optional—where to write the send-time map dump (the `HashMap` snapshot from the run).
+
+- **Default file name:** `send_time_map.jsonl`
+- **Default location:** the process [current working directory](https://en.wikipedia.org/wiki/Working_directory)—i.e. whatever directory you run the binary from (`cargo run` from the repo root usually means the file lands in the repo root). If you pass a path, that path is used as-is (relative paths are relative to the same CWD).
+
+Each line is one JSON object: `raw_transaction`, `send_epoch_ms`.
 
 ## Config (`configs/default.toml`)
 

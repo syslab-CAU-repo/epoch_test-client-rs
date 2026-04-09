@@ -1,1 +1,10 @@
 /target
+
+experiment_meta.json
+send_time_map.experiment_meta.json
+send_time_map.jsonl
+
+configs/*
+
+*.swp
+
